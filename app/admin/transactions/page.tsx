@@ -1,0 +1,672 @@
+'use client'
+import Image from 'next/image'
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
+import { AlartStore, MessageStore } from '@/src/zustand/notification/Message'
+import LinkedPagination from '@/components/Admin/LinkedPagination'
+import {
+  formatDateToDDMMYY,
+  formatMoney,
+  formatTimeTo12Hour,
+} from '@/lib/helpers'
+import StatDuration from '@/components/Admin/StatDuration'
+import TransactionStore, {
+  Transaction,
+  TransactionEmpty,
+} from '@/src/zustand/Transaction'
+import PrintSlip from '@/components/Admin/PopUps/PrintSlip'
+import TransactionEditForm from '@/components/Admin/PopUps/TransactionEditForm'
+import { AuthStore } from '@/src/zustand/user/AuthStore'
+
+const Transactions: React.FC = () => {
+  const [page_size] = useState(20)
+  const [sort] = useState('-createdAt')
+  const { setMessage } = MessageStore()
+  const { setAlert } = AlartStore()
+  const {
+    summary,
+    loading,
+    count,
+    trx,
+    transactionForm,
+    isAllChecked,
+    selectedTransactions,
+    toggleChecked,
+    toggleAllSelected,
+    massDeleteTransactions,
+    updatePartPayment,
+    setTransactionForm,
+    updateTransaction,
+    getTransactions,
+    page_size: storePageSize
+  } = TransactionStore()
+  const { page } = useParams()
+  const defaultFrom = () => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  const defaultTo = () => {
+    const d = new Date()
+    d.setHours(23, 59, 59, 999)
+    return d
+  }
+  const [fromDate, setFromDate] = useState<Date>(defaultFrom)
+  const [toDate, setToDate] = useState<Date>(defaultTo)
+  const [paymentFilter, setPaymentFilter] = useState('All')
+  const [productFilter, setProductFilter] = useState('All')
+  const [partPayment, setPartPayment] = useState(0)
+  const [guide, setGuide] = useState('')
+  const [showGuide, setShowGuide] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [showPrint, setShowPrint] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const { user } = AuthStore()
+  const isLeader = user?.staffPositions?.includes('Director') || user?.staffPositions?.includes('CEO')
+  const url = `/transactions?dateFrom=${fromDate}&dateTo=${toDate}`
+
+  useEffect(() => {
+    if (fromDate && toDate) {
+      let filters = ''
+      if (paymentFilter !== 'All') {
+        if (paymentFilter === 'POS & Transfer') {
+          filters += '&payment[in]=POS,Transfer'
+        } else {
+          filters += `&payment=${paymentFilter}`
+        }
+      }
+
+      if (productFilter !== 'All') {
+        if (productFilter === 'Fresh & Cracked Eggs') {
+          filters += '&cartProducts.name[in]=Fresh Eggs,Cracked Fresh Eggs'
+        } else if (productFilter === 'Empty Bag') {
+          filters += '&cartProducts.name[regex]=Empty Bag&cartProducts.name[options]=i'
+        } else if (productFilter === 'Manure') {
+          filters += '&cartProducts.name[regex]=Manure&cartProducts.name[options]=i'
+        } else {
+          filters += `&cartProducts.name=${productFilter}`
+        }
+      }
+
+      const params = `&page_size=${page_size}&page=${
+        page ? page : 1
+      }&ordering=${sort}&isProfit=true${filters}`
+      getTransactions(`${url}${params}`, setMessage)
+    }
+  }, [page, toDate, fromDate, getTransactions, url, setMessage, page_size, sort, paymentFilter, productFilter])
+
+  const updateTrnx = (e: boolean, id: string) => {
+    updateTransaction(
+      `/transactions/${id}?ordering=-createdAt`,
+      { status: e ? false : true },
+      setMessage
+    )
+  }
+
+  const selectTrx = (trx: Transaction) => {
+    TransactionStore.setState({ transactionForm: trx })
+    setShowForm(true)
+  }
+
+  const selectPrint = (trx: Transaction) => {
+    TransactionStore.setState({ transactionForm: trx })
+    setShowPrint(true)
+  }
+
+  const selectEdit = (trx: Transaction) => {
+    if (!isLeader) {
+      setMessage('Access Denied: Only Director or CEO can edit transactions.', false)
+      return
+    }
+    TransactionStore.setState({ transactionForm: trx })
+    setShowEdit(true)
+  }
+
+  const selectGuide = (trx: Transaction) => {
+    TransactionStore.setState({ transactionForm: trx })
+    setGuide(trx.guide)
+    setShowGuide(true)
+  }
+
+  const handleSubmit = async (e: string) => {
+    const form = new FormData()
+    form.append('username', transactionForm.username)
+    form.append('partPayment', JSON.stringify(partPayment))
+    form.append('totalAmount', String(transactionForm.totalAmount))
+    form.append('payment', String(e))
+    updatePartPayment(
+      `/transactions/part-payment/${
+        transactionForm._id
+      }/?ordering=${sort}&page=${
+        page ? page : 1
+      }&dateFrom=${fromDate}&dateTo=${toDate}&isProfit=true`,
+      form,
+      setMessage,
+      () => {
+        setTransactionForm(TransactionEmpty)
+        setShowForm(false)
+      }
+    )
+  }
+
+  const handleSubmitGuide = async () => {
+    if (guide.length === 0) {
+      setMessage('Please write a guide to submit', false)
+      return
+    }
+    const form = new FormData()
+    form.append('guide', guide)
+    updatePartPayment(
+      `/transactions/${transactionForm._id}/?ordering=${sort}&page=${
+        page ? page : 1
+      }&dateFrom=${fromDate}&dateTo=${toDate}&isProfit=true`,
+      form,
+      setMessage,
+      () => {
+        setTransactionForm(TransactionEmpty)
+        setShowGuide(false)
+        setGuide('')
+      }
+    )
+  }
+
+  const startDeleteTransactions = async () => {
+    if (selectedTransactions.length === 0) {
+      setMessage('Please select at least one transaction to delete', false)
+      return
+    }
+
+    setAlert(
+      'Warning',
+      'Are you sure you want to delete the selected transactions?',
+      true,
+      () => deleteManyTransactions()
+    )
+  }
+
+  const deleteManyTransactions = async () => {
+    const ids = selectedTransactions.map((item) => item._id)
+    await massDeleteTransactions(
+      `/transactions/mass-delete?dateFrom=${fromDate}&dateTo=${toDate}&page_size=${page_size}&page=${
+        page ? page : 1
+      }&ordering=${sort}&isProfit=true`,
+      { ids: ids },
+      setMessage
+    )
+  }
+
+  const handleExport = () => {
+    if (trx.length === 0) {
+      setMessage('No records to export.', false)
+      return
+    }
+
+    const headers = ['S/N', 'Customer', 'Phone', 'Staff', 'Invoice', 'Amount', 'Status', 'Payment', 'Time', 'Date']
+    const rows = trx.map((item, index) => [
+      String(index + 1),
+      item.fullName,
+      item.phone,
+      item.staffName,
+      item.invoiceNumber,
+      String(item.totalAmount),
+      item.status ? 'Paid' : 'Pending',
+      item.payment,
+      formatTimeTo12Hour(item.createdAt),
+      formatDateToDDMMYY(item.createdAt)
+    ])
+
+    const csvContent = [headers, ...rows]
+      .map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+      .join("\n")
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.setAttribute("download", `Transactions_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setMessage('Transaction records exported successfully!', true)
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <StatDuration
+          title="Daily Transactions"
+          fromDate={fromDate}
+          toDate={toDate}
+          setFromDate={setFromDate}
+          setToDate={setToDate}
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <select 
+            value={paymentFilter}
+            onChange={(e) => setPaymentFilter(e.target.value)}
+            className="form-input !py-2 !h-auto !text-sm !w-[140px]"
+          >
+            <option value="All">All Payments</option>
+            <option value="POS">POS</option>
+            <option value="Transfer">Transfer</option>
+            <option value="POS & Transfer">POS & Transfer</option>
+            <option value="Cash">Cash</option>
+          </select>
+
+          <select 
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="form-input !py-2 !h-auto !text-sm !w-[160px]"
+          >
+            <option value="All">All Products</option>
+            <option value="Fresh Eggs">Fresh Eggs</option>
+            <option value="Cracked Fresh Eggs">Cracked Fresh Eggs</option>
+            <option value="Fresh & Cracked Eggs">Fresh & Cracked Eggs</option>
+            <option value="Empty Bag">Empty Bag</option>
+            <option value="Manure">Manure</option>
+          </select>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={startDeleteTransactions}
+            className="tableActions !w-[45px] !h-[45px] flex items-center justify-center bg-[var(--customRedColor)] text-white border-none rounded-full shadow-md transition-all hover:scale-105 active:scale-95"
+            title="Delete Selected"
+          >
+            <i className="bi bi-trash text-xl"></i>
+          </button>
+
+          {selectedTransactions.length === 1 && (
+            <button
+              onClick={() => selectEdit(selectedTransactions[0])}
+              className="tableActions !w-[45px] !h-[45px] flex items-center justify-center bg-[var(--customColor)] text-white border-none rounded-full shadow-md transition-all hover:scale-105 active:scale-95"
+              title="Edit Transaction"
+            >
+              <i className="bi bi-pen text-xl"></i>
+            </button>
+          )}
+
+          {selectedTransactions.length === 1 && (
+            <button
+              onClick={() => selectGuide(selectedTransactions[0])}
+              className="tableActions !w-[45px] !h-[45px] flex items-center justify-center bg-blue-500 text-white border-none rounded-full shadow-md transition-all hover:scale-105 active:scale-95"
+              title="Delivery Guide"
+            >
+              <i className="bi bi-geo-alt text-xl"></i>
+            </button>
+          )}
+
+          <button
+            onClick={handleExport}
+            className="tableActions !w-[45px] !h-[45px] flex items-center justify-center bg-green-600 text-white border-none rounded-full shadow-md transition-all hover:scale-105 active:scale-95"
+            title="Export to Excel"
+          >
+            <i className="bi bi-file-earmark-excel text-xl"></i>
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-auto mb-5">
+        {trx.length > 0 ? (
+          <table>
+            <thead>
+              <tr className="bg-[var(--primary)] p-2">
+                <th>S/N</th>
+                <th>Customer</th>
+                <th>Staff</th>
+                <th>Products</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Time</th>
+                <th>Remark</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trx.map((item, index) => (
+                <tr
+                  key={index}
+                  className={` ${index % 2 === 1 ? 'bg-[var(--primary)]' : ''}`}
+                >
+                  <td>
+                    <div className="flex items-center">
+                      <div
+                        className={`checkbox ${item.isChecked ? 'active' : ''}`}
+                        onClick={() => toggleChecked(index)}
+                      >
+                        {item.isChecked && (
+                          <i className="bi bi-check text-white text-lg"></i>
+                        )}
+                      </div>
+                      {(page ? Number(page) - 1 : 1 - 1) * page_size +
+                        index +
+                        1}
+                    </div>
+                  </td>
+                  <td>
+                    {item.fullName}
+                    <br />
+                    {item.phone}
+                  </td>
+                  <td>
+                    {item.staffName}
+                    <div 
+                      onClick={() => selectEdit(item)}
+                      className="cursor-pointer text-[var(--customRedColor)] hover:underline font-bold"
+                      title={isLeader ? "Click to Edit Transaction" : "Restricted: CEO/Director Only"}
+                    >
+                      {item.invoiceNumber}
+                    </div>
+                  </td>
+                  <td>
+                    {item.cartProducts.map((p, i) => (
+                      <div
+                        key={i}
+                        className={`${
+                          p.adjustedPrice ? 'text-[var(--customRedColor)]' : ''
+                        } flex`}
+                      >
+                        ₦
+                        {p.adjustedPrice
+                          ? formatMoney(p.adjustedPrice)
+                          : formatMoney(p.price)}{' '}
+                        x {p.cartUnits} {p.purchaseUnit} of {p.name}
+                      </div>
+                    ))}
+                  </td>
+                  <td
+                    className={`${
+                      item.isProfit
+                        ? 'text-[var(--success)]'
+                        : 'text-[var(--customRedColor)]'
+                    }`}
+                  >
+                    ₦{formatMoney(item.totalAmount)}
+                    {item.adjustedTotal !== item.totalAmount && (
+                      <div className="text-[var(--customRedColor)]">
+                        ₦{formatMoney(item.adjustedTotal)}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <div className="flex flex-col items-center">
+                      <div 
+                        onClick={() => selectPrint(item)}
+                        className="cursor-pointer text-[var(--success)] mb-1"
+                        title="Print Transaction"
+                      >
+                        <i className="bi bi-printer text-lg"></i>
+                      </div>
+                      <div className="flex w-full">
+                        {!item.status ? (
+                          item.partPayment ? (
+                            <div
+                              onClick={() => {
+                                TransactionStore.setState({ transactionForm: item })
+                                setShowForm(true)
+                              }}
+                              className="bg-[var(--customRedColor)] px-2 cursor-pointer py-1 text-white w-full text-center"
+                              title="Click to complete payment"
+                            >
+                              Pending
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => updateTrnx(item.status, item._id)}
+                              className="bg-[var(--customRedColor)] px-2 cursor-pointer py-1 text-white w-full text-center"
+                              title="Click to mark as Paid"
+                            >
+                              Pending
+                            </div>
+                          )
+                        ) : (
+                          <div
+                            className="bg-[var(--success)] px-2 py-1 text-white w-full text-center"
+                          >
+                            Paid
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-[10px] mt-0.5">{item.payment}</div>
+                    </div>
+                  </td>
+                  <td>
+                    {formatTimeTo12Hour(item.createdAt)} <br />
+                    {formatDateToDDMMYY(item.createdAt)}
+                  </td>
+                  <td className="max-w-[120px]">{item.remark}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="relative flex justify-center">
+            <div className="not_found_text">No Transactions Found</div>
+            <Image
+              className="max-w-[300px]"
+              alt={`no record`}
+              src="/images/not-found.png"
+              width={0}
+              sizes="100vw"
+              height={0}
+              priority
+              style={{ width: '100%', height: 'auto' }}
+            />
+          </div>
+        )}
+      </div>
+
+      {loading && (
+        <div className="flex w-full justify-center py-5">
+          <i className="bi bi-opencollective loading"></i>
+        </div>
+      )}
+
+      <div className="card_body sharp mb-3 flex items-center justify-end">
+        <div className="flex items-center">
+          <div className="text-[var(--text-secondary)] mr-3 font-bold" title="Total Items Sold">
+            {formatMoney(summary.totalQuantity || 0)} Items Sold
+          </div>
+          <div className="text-[var(--success)] mr-3 font-bold" title="Total Profit">
+            ₦{formatMoney(summary.totalProfit)}
+          </div>
+          <div className="text-[var(--customRedColor)] font-bold" title="Total Loss">
+            ₦{formatMoney(summary.totalLoss)}
+          </div>
+        </div>
+      </div>
+
+      <div className="card_body sharp">
+        <LinkedPagination
+          url="/admin/transactions"
+          count={count}
+          page_size={count > 0 ? count : page_size}
+        />
+      </div>
+
+      {transactionForm._id && showForm && (
+        <div
+          onClick={() => {
+            setTransactionForm(TransactionEmpty)
+            setShowForm(false)
+          }}
+          className="fixed h-full w-full z-30 left-0 top-0 bg-black/50 items-center justify-center flex"
+        >
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
+            className="card_body sharp w-full max-w-[600px]"
+          >
+            <div className="overflow-auto max-h-[80vh]">
+              {transactionForm.cartProducts.map((item, index) => (
+                <div key={index} className="card_body sharp mb-1">
+                  <div className="">
+                    <div className="flex flex-wrap sm:flex-nowrap relative items-start mb-3">
+                      <div className="flex items-center mr-3">{index + 1}</div>
+                      <div className="relative w-[70px] h-[50px] mb-3 sm:mb-0 overflow-hidden rounded-[5px] sm:mr-3">
+                        {item.picture ? (
+                          <Image
+                            alt={`email of ${item.picture}`}
+                            src={item.picture ? String(item.picture) : '/images/page-header.jpg'}
+                            width={0}
+                            sizes="100vw"
+                            height={0}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : (
+                          <span>N/A</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-start w-full sm:w-auto">
+                        <div className="text-[var(--text-secondary)] mb-1">
+                          {item.name}
+                        </div>{' '}
+                        <div className="flex text-sm">
+                          <div className="flex mr-3">
+                            Qty:
+                            <span className="text-[var(--text-secondary)] ml-1">
+                              {item.cartUnits}
+                            </span>
+                          </div>
+                          <div className="flex">
+                            Price:
+                            <span className="text-[var(--text-secondary)] ml-1">
+                              ₦{formatMoney(item.price)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex">
+                      <div className="flex mr-3">
+                        Price:
+                        <span className="text-[var(--text-secondary)] ml-1">
+                          ₦{formatMoney(item.price * item.cartUnits)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-end mb-2">
+              <div className="text-lg text-[var(--customRedColor)] mr-3">
+                Part Payment
+              </div>
+              <div className="text-lg text-[var(--customRedColor)] mr-3">
+                ₦{formatMoney(transactionForm.partPayment)}
+              </div>
+              <input
+                value={partPayment}
+                onChange={(e) => {
+                  const value = Number(e.target.value)
+                  if (
+                    isNaN(value) ||
+                    value < 0 ||
+                    value > transactionForm.totalAmount
+                  )
+                    return
+                  setPartPayment(value)
+                }}
+                placeholder="Part payment"
+                className="bg-[var(--secondary)] max-w-[150px] p-1 outline-none border border-[var(--border)]"
+                type="number"
+              />
+            </div>
+
+            <div className="bg-[var(--secondary)] p-3 flex items-center flex-wrap">
+              <div className="mr-auto text-[var(--customRedColor)]">
+                ₦{formatMoney(transactionForm.totalAmount)}
+              </div>
+              <div
+                onClick={() => handleSubmit('Transfer')}
+                className="px-2 cursor-pointer py-1 bg-[var(--success)] text-[var(--text-secondary)] mr-3"
+              >
+                Transfer
+              </div>
+              <div
+                onClick={() => handleSubmit('Cash')}
+                className="px-3 cursor-pointer py-1 bg-[var(--customRedColor)] text-[var(--text-secondary)] mr-3"
+              >
+                Cash
+              </div>
+              <div
+                onClick={() => handleSubmit('POS')}
+                className="px-3 cursor-pointer py-1 bg-[var(--customColor)] text-[var(--text-secondary)] mr-3"
+              >
+                POS
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transactionForm._id && showGuide && (
+        <div
+          onClick={() => {
+            setTransactionForm(TransactionEmpty)
+            setShowGuide(false)
+          }}
+          className="fixed h-full w-full z-30 left-0 top-0 bg-black/50 items-center justify-center flex"
+        >
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
+            className="card_body sharp w-full max-w-[600px]"
+          >
+            <div className="flex flex-col">
+              <label className="label mb-2" htmlFor="">
+                Delivery Guide for {transactionForm.fullName}
+              </label>
+              <textarea
+                placeholder="Write delivery guide"
+                className="form-input"
+                value={guide}
+                onChange={(e) => setGuide(e.target.value)}
+              ></textarea>
+            </div>
+
+            <div className="bg-[var(--secondary)] p-3 flex items-center flex-wrap">
+              <div className="mr-auto text-[var(--customRedColor)]">
+                ₦{formatMoney(transactionForm.totalAmount)}
+              </div>
+              <div
+                onClick={handleSubmitGuide}
+                className="px-2 cursor-pointer py-1 bg-[var(--success)] text-white mr-3"
+              >
+                Submit Guide
+              </div>{' '}
+            </div>
+          </div>
+        </div>
+      )}
+      {transactionForm._id && showPrint && (
+        <PrintSlip 
+          transaction={transactionForm} 
+          onClose={() => {
+            setTransactionForm(TransactionEmpty)
+            setShowPrint(false)
+          }} 
+        />
+      )}
+      {transactionForm._id && showEdit && (
+        <TransactionEditForm 
+          transaction={transactionForm} 
+          onClose={() => {
+            setTransactionForm(TransactionEmpty)
+            setShowEdit(false)
+          }} 
+        />
+      )}
+    </>
+  )
+}
+
+export default Transactions

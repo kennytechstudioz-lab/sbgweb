@@ -84,7 +84,16 @@ const PeriodicSummaryModal: React.FC<PeriodicSummaryModalProps> = ({
       } else if (type === 'Transaction') {
         if (item.cartProducts && item.cartProducts.length > 0) {
           item.cartProducts.forEach((p: any) => {
-            processEntry(p.name, Number(p.cartUnits) || 0, (Number(p.price) || 0) * (Number(p.cartUnits) || 0), p.purchaseUnit)
+            const unitPrice =
+              p.adjustedPrice && p.adjustedPrice > 0
+                ? Number(p.adjustedPrice)
+                : Number(p.price) || 0
+            processEntry(
+              p.name,
+              Number(p.cartUnits) || 0,
+              unitPrice * (Number(p.cartUnits) || 0),
+              p.purchaseUnit
+            )
           })
         }
       } else if (type === 'Mortality') {

@@ -59,7 +59,7 @@ const SellingTable: React.FC = () => {
 
     const total = cartProducts.reduce((sum, item) => {
       const priceToUse =
-        item.adjustedPrice && item.adjustedPrice > item.costPrice
+        item.adjustedPrice && item.adjustedPrice > 0
           ? item.adjustedPrice
           : item.price
 
@@ -145,17 +145,21 @@ const SellingTable: React.FC = () => {
     form.append('staffName', String(user?.fullName))
     form.append('picture', userForm.picture ? userForm.picture : '')
 
-    const processedCart = isCracked 
-      ? cartProducts.map(p => ({ 
-          ...p, 
-          name: `Cracked ${p.name}`,
-          price: p.adjustedPrice && p.adjustedPrice > 0 ? p.adjustedPrice : p.price
-        }))
-      : cartProducts
+    const processedCart = cartProducts.map((p) => {
+      const priceToUse =
+        p.adjustedPrice && p.adjustedPrice > 0 ? p.adjustedPrice : p.price
+      return {
+        ...p,
+        name: isCracked ? `Cracked ${p.name}` : p.name,
+        price: priceToUse,
+        adjustedPrice:
+          p.adjustedPrice && p.adjustedPrice > 0 ? p.adjustedPrice : undefined,
+      }
+    })
 
     form.append('cartProducts', JSON.stringify(processedCart))
     form.append('partPayment', '0')
-    form.append('totalAmount', isCracked ? String(adjustedTotal) : String(totalAmount))
+    form.append('totalAmount', String(adjustedTotal))
     form.append('adjustedTotal', String(adjustedTotal))
     form.append('delivery', 'Instant')
     form.append('payment', String(e))

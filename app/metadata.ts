@@ -1,9 +1,9 @@
 // utils/metadata.ts
 import { Metadata } from "next";
 
-const APP_NAME = "Schooling Social";
-const APP_DESCRIPTION = "Engage with posts and connect on Schooling Social.";
-const APP_LOGO = "/images/logos/SchoolingLogo.png";
+const APP_NAME = "SBG EGG Farms";
+const APP_DESCRIPTION = "Connect with fellow farmers and share your poultry farming journey.";
+const APP_LOGO = "/images/logos/sbg.png";
 const APP_FAVICON = "/favicon.ico";
 
 export const generateMetadata = (

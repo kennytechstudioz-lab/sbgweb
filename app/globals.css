@@ -57,6 +57,10 @@
   --border-background: #111111;
   --text-main-color: #bababa;
   --text-title-color: #e2e2e2;
+  --primaryTextColor: #f3f4f6;
+  --secondaryTextColor: #a1a1aa;
+  --backgroundColor: #121314;
+  --secondaryCustomColor: #1c1e21;
   --success: #0fce48;
   --warning: #eab308;
 }
@@ -74,6 +78,7 @@
 html,
 body {
   overscroll-behavior-y: contain;
+  overflow-x: clip;
   /* Stops pull-to-refresh */
 }
 

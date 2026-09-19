@@ -144,7 +144,7 @@
 }
 
 .v_nav_card {
-  @apply md:border-none w-[300px] xl:w-full flex flex-col overflow-auto h-[100vh] bg-[var(--white)] px-3;
+  @apply md:border-none w-full flex flex-col overflow-auto h-[100vh] bg-[var(--white)] px-3;
 }
 
 .v_nav_card.aside {

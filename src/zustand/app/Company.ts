@@ -16,6 +16,7 @@ export interface Company {
   bankAccountNumber: string
   bankName: string
   authCode: string
+  rate: number
 }
 
 export const CompanyEmpty = {
@@ -33,6 +34,7 @@ export const CompanyEmpty = {
   bankAccountName: '',
   bankName: '',
   authCode: '',
+  rate: 0,
 }
 
 interface FetchResponse {
@@ -112,7 +114,25 @@ const CompanyStore = create<CompanyState>((set) => ({
       })
       const data = response.data
       if (data.company) {
-        set({ companyForm: data.company, loading: false })
+        set({
+          companyForm: {
+            ...CompanyEmpty,
+            ...data.company,
+            name: data.company.name ?? '',
+            domain: data.company.domain ?? '',
+            finalInstruction: data.company.finalInstruction ?? '',
+            email: data.company.email ?? '',
+            documents: data.company.documents ?? '',
+            phone: data.company.phone ?? '',
+            headquaters: data.company.headquaters ?? '',
+            bankAccountNumber: data.company.bankAccountNumber ?? '',
+            bankAccountName: data.company.bankAccountName ?? '',
+            bankName: data.company.bankName ?? '',
+            authCode: data.company.authCode ?? '',
+            rate: data.company.rate ?? 0,
+          },
+          loading: false,
+        })
       }
     } catch (error) {
       console.log(error)
@@ -148,8 +168,28 @@ const CompanyStore = create<CompanyState>((set) => ({
       setMessage,
     })
     const data = response.data
-    if (data) {
-      set({ loading: false, companyForm: data.company })
+    if (data && data.company) {
+      set({
+        loading: false,
+        companyForm: {
+          ...CompanyEmpty,
+          ...data.company,
+          name: data.company.name ?? '',
+          domain: data.company.domain ?? '',
+          finalInstruction: data.company.finalInstruction ?? '',
+          email: data.company.email ?? '',
+          documents: data.company.documents ?? '',
+          phone: data.company.phone ?? '',
+          headquaters: data.company.headquaters ?? '',
+          bankAccountNumber: data.company.bankAccountNumber ?? '',
+          bankAccountName: data.company.bankAccountName ?? '',
+          bankName: data.company.bankName ?? '',
+          authCode: data.company.authCode ?? '',
+          rate: data.company.rate ?? 0,
+        },
+      })
+    } else {
+      set({ loading: false })
     }
   },
 }))

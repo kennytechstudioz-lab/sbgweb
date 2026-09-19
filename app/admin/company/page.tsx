@@ -107,6 +107,12 @@ const CreateCompany: React.FC = () => {
         rules: { blank: false, minLength: 6, maxLength: 6 },
         field: 'Authentication Code',
       },
+      {
+        name: 'rate',
+        value: companyForm.rate !== undefined && companyForm.rate !== null ? String(companyForm.rate) : '0',
+        rules: { blank: false },
+        field: 'Production rate field',
+      },
     ]
 
     const { messages } = validateInputs(inputsToValidate)
@@ -145,7 +151,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="name"
-              value={companyForm.name}
+              value={companyForm.name ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter name"
@@ -158,7 +164,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="domain"
-              value={companyForm.domain}
+              value={companyForm.domain ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter domain"
@@ -171,7 +177,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="email"
-              value={companyForm.email}
+              value={companyForm.email ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter email"
@@ -184,7 +190,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="phone"
-              value={companyForm.phone}
+              value={companyForm.phone ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter phone"
@@ -198,7 +204,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="headquaters"
-              value={companyForm.headquaters}
+              value={companyForm.headquaters ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter headquaters"
@@ -211,7 +217,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="bankName"
-              value={companyForm.bankName}
+              value={companyForm.bankName ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter bank account number"
@@ -224,7 +230,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="bankAccountNumber"
-              value={companyForm.bankAccountNumber}
+              value={companyForm.bankAccountNumber ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter bank account number"
@@ -237,7 +243,7 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="bankAccountName"
-              value={companyForm.bankAccountName}
+              value={companyForm.bankAccountName ?? ''}
               onChange={handleInputChange}
               type="text"
               placeholder="Enter bank account name"
@@ -250,11 +256,25 @@ const CreateCompany: React.FC = () => {
             <input
               className="form-input"
               name="authCode"
-              value={companyForm.authCode}
+              value={companyForm.authCode ?? ''}
               onChange={handleInputChange}
               type="password"
               maxLength={6}
               placeholder="Enter 6-digit code"
+            />
+          </div>
+          <div className="flex flex-col">
+            <label className="label" htmlFor="">
+              Daily Egg Production Rate (Crates / Day)
+            </label>
+            <input
+              className="form-input"
+              name="rate"
+              value={companyForm.rate ?? ''}
+              onChange={handleInputChange}
+              type="number"
+              min="0"
+              placeholder="e.g. 50"
             />
           </div>
         </div>
@@ -264,7 +284,7 @@ const CreateCompany: React.FC = () => {
             Brief Company Info
           </label>
           <textarea
-            value={companyForm.finalInstruction}
+            value={companyForm.finalInstruction ?? ''}
             onChange={handleInputChange}
             className="form-input"
             placeholder="Write welcome note"
@@ -284,9 +304,9 @@ const CreateCompany: React.FC = () => {
               <button className="custom_btn" onClick={handleSubmit}>
                 Submit
               </button>
-              <button className="custom_btn" onClick={startReset}>
+              {/* <button className="custom_btn" onClick={startReset}>
                 Reset App
-              </button>
+              </button> */}
               <div className="flex items-center gap-2 border border-[var(--border)] rounded px-3 py-1 bg-secondary-bg">
                 <span className="text-sm">Allow Applicant</span>
                 <button

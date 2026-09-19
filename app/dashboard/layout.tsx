@@ -42,7 +42,7 @@ export default function RootLayout({
         <div className="custom_container">
           <div className="flex w-full">
             <DashboardNavigation />
-            <div className="flex-1 md:pb-0 md:pl-5 overflow-x-auto md:overflow-visible">
+            <div className="flex-1 min-w-0 md:pb-0 md:pl-5 overflow-x-auto md:overflow-visible">
               <DashboardHeader />
               {/* <div className="pt-5 flex-1"> */}
               <div

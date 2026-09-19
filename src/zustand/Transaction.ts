@@ -113,6 +113,7 @@ interface TransactionState {
   isNotification: boolean
   isAllChecked: boolean
   page_size: number
+  pendingCount: number
   bars: Bar[]
   totals: Totals
   summary: { totalLoss: number; totalProfit: number; totalQuantity?: number }
@@ -168,6 +169,11 @@ interface TransactionState {
     selectedTransactions: Record<string, unknown>,
     setMessage: (message: string, isError: boolean) => void
   ) => Promise<void>
+  deleteTransaction: (
+    url: string,
+    setMessage: (message: string, isError: boolean) => void,
+    redirect?: () => void
+  ) => Promise<void>
   getLatestTransactions: (url: string) => Promise<void>
   getTransactionBarchart: (url: string) => Promise<void>
   setProcessedResults: (data: FetchResponse) => void
@@ -187,6 +193,7 @@ const TransactionStore = create<TransactionState>((set) => ({
   isAllChecked: false,
   count: 0,
   page_size: 0,
+  pendingCount: 0,
   bars: [],
   deliveries: [],
   latest: [],
@@ -239,12 +246,15 @@ const TransactionStore = create<TransactionState>((set) => ({
         isChecked: false,
         isActive: false,
       }))
-
+      const pendingCount = results.filter((t: Transaction) => !t.status).length
       set({
         count,
         transactions: updatedResults,
         trx: results,
+        pendingCount,
       })
+    } else {
+      set({ count, transactions: [], trx: [], pendingCount: 0 })
     }
   },
 
@@ -397,6 +407,35 @@ const TransactionStore = create<TransactionState>((set) => ({
       const data = response?.data
       if (data) {
         TransactionStore.getState().setProcessedResults(data.result)
+      }
+    } catch (error: unknown) {
+      console.log(error)
+    }
+  },
+
+  deleteTransaction: async (url, setMessage, redirect) => {
+    try {
+      const response = await apiRequest<FetchResponse>(url, {
+        method: 'DELETE',
+        setMessage,
+      })
+      if (response?.status === 200 || response?.status === 204) {
+        // Extract transaction id from url like /transactions/:id
+        const id = url.split('/').find((seg, i, arr) => arr[i - 1] === 'transactions' && seg.length > 10)
+        if (id) {
+          set((state) => {
+            const newTrx = state.trx.filter((t) => t._id !== id)
+            const newTransactions = state.transactions.filter((t) => t._id !== id)
+            const pendingCount = newTrx.filter((t) => !t.status).length
+            return {
+              trx: newTrx,
+              transactions: newTransactions,
+              count: Math.max(0, state.count - 1),
+              pendingCount,
+            }
+          })
+        }
+        if (redirect) redirect()
       }
     } catch (error: unknown) {
       console.log(error)

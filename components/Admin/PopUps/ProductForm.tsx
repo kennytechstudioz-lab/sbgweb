@@ -145,6 +145,12 @@ const ProductForm: React.FC = () => {
         rules: { maxLength: 100 },
         field: 'Units field',
       },
+      {
+        name: 'rate',
+        value: productForm.rate || 0,
+        rules: { maxLength: 100 },
+        field: 'Daily Production Rate field',
+      },
     ]
     const { messages } = validateInputs(inputsToValidate)
     const getFirstNonEmptyMessage = (
@@ -358,6 +364,24 @@ const ProductForm: React.FC = () => {
                   Is Selling? (Market Ready)
                 </label>
               </div>
+
+              {productForm.isSelling && (
+                <div className="flex flex-col ml-2 mt-2">
+                  <label className="label !text-xs font-bold" htmlFor="rate">
+                    Daily Production / Replenishment Rate ({productForm.purchaseUnit || 'Units'} / Day)
+                  </label>
+                  <input
+                    className="form-input"
+                    id="rate"
+                    name="rate"
+                    value={productForm.rate ?? ''}
+                    onChange={handleInputChange}
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 50"
+                  />
+                </div>
+              )}
             </div>
 
           </div>

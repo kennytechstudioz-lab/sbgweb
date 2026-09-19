@@ -10,9 +10,10 @@ import { formatMoney } from '@/lib/helpers'
 export interface BookCrateModalProps {
   isOpen: boolean
   onClose: () => void
+  product?: Product
   eggProduct?: Product
-  inStock: number
-  rate: number
+  inStock?: number
+  rate?: number
   onSuccess?: () => void
 }
 
@@ -26,22 +27,24 @@ export interface AvailabilityInfo {
 }
 
 export function calculateAvailability(
-  bookedCrates: number,
+  bookedUnits: number,
   inStock: number,
-  rate: number
+  rate: number,
+  unitName: string = 'Crate'
 ): AvailabilityInfo {
-  if (bookedCrates <= 0) {
+  const plural = unitName.endsWith('s') ? unitName : `${unitName}s`
+  if (bookedUnits <= 0) {
     return {
       status: 'invalid',
       dayOfWeek: '',
       dateFormatted: '',
       daysNeeded: 0,
       deficit: 0,
-      message: 'Please enter at least 1 crate.',
+      message: `Please enter at least 1 ${unitName.toLowerCase()}.`,
     }
   }
 
-  if (bookedCrates <= inStock) {
+  if (bookedUnits <= inStock) {
     return {
       status: 'in-stock',
       dayOfWeek: 'Today',
@@ -52,7 +55,7 @@ export function calculateAvailability(
     }
   }
 
-  const deficit = bookedCrates - inStock
+  const deficit = bookedUnits - inStock
   if (rate <= 0) {
     return {
       status: 'no-rate',
@@ -60,7 +63,7 @@ export function calculateAvailability(
       dateFormatted: '',
       daysNeeded: 0,
       deficit,
-      message: 'Quantity exceeds stock and daily production rate is not configured.',
+      message: `Quantity exceeds stock and daily production/replenishment rate is not configured.`,
     }
   }
 
@@ -98,11 +101,24 @@ export function calculateAvailability(
 export default function BookCrateModal({
   isOpen,
   onClose,
+  product,
   eggProduct,
   inStock,
   rate,
   onSuccess,
 }: BookCrateModalProps) {
+  const currentProduct = product || eggProduct
+  const unitName = currentProduct?.purchaseUnit || 'Crate'
+  const unitNamePlural = unitName.endsWith('s') ? unitName : `${unitName}s`
+  const computedInStock =
+    inStock !== undefined
+      ? inStock
+      : currentProduct
+      ? Math.floor((Number(currentProduct.units) || 0) / (Number(currentProduct.unitPerPurchase) || 1))
+      : 0
+  const computedRate =
+    rate !== undefined ? rate : Number(currentProduct?.rate) || 0
+
   const { user } = AuthStore()
   const { companyForm, getCompany } = CompanyStore()
   const { createTransaction, loading: productLoading } = ProductStore()
@@ -119,7 +135,7 @@ export default function BookCrateModal({
   useEffect(() => {
     if (isOpen) {
       setView('booking')
-      setCratesInput(inStock > 0 ? Math.min(inStock, 5) : 1)
+      setCratesInput(computedInStock > 0 ? Math.min(computedInStock, 5) : 1)
       setPaymentMethod('Transfer')
       setReceipt(null)
       setPreview('')
@@ -129,15 +145,15 @@ export default function BookCrateModal({
         getCompany('/company', setMessage)
       }
     }
-  }, [isOpen, inStock])
+  }, [isOpen, computedInStock])
 
   const bookedCrates = Math.max(0, Number(cratesInput) || 0)
-  const unitPrice = Number(eggProduct?.price) || 0
+  const unitPrice = Number(currentProduct?.price) || 0
   const totalPrice = bookedCrates * unitPrice
 
   const availability = useMemo(
-    () => calculateAvailability(bookedCrates, inStock, rate),
-    [bookedCrates, inStock, rate]
+    () => calculateAvailability(bookedCrates, computedInStock, computedRate, unitName),
+    [bookedCrates, computedInStock, computedRate, unitName]
   )
 
   if (!isOpen) return null
@@ -178,15 +194,15 @@ export default function BookCrateModal({
       return
     }
 
-    if (!eggProduct?._id) {
-      setMessage('Egg product details not found.', false)
+    if (!currentProduct?._id) {
+      setMessage('Product details not found.', false)
       return
     }
 
     const bookedItem = {
-      ...eggProduct,
+      ...currentProduct,
       cartUnits: bookedCrates,
-      purchaseUnit: eggProduct.purchaseUnit || 'Crate',
+      purchaseUnit: unitName,
     }
 
     const form = new FormData()
@@ -203,6 +219,7 @@ export default function BookCrateModal({
     form.append('isProfit', 'true')
     form.append('from', 'User')
     form.append('status', 'false')
+    form.append('isBooking', 'true')
 
     setSubmitting(true)
     createTransaction(
@@ -212,7 +229,7 @@ export default function BookCrateModal({
       () => {
         setSubmitting(false)
         setMessage(
-          `Booking of ${bookedCrates} crate${bookedCrates > 1 ? 's' : ''} confirmed via ${paymentMethod}! Available on ${
+          `Booking of ${bookedCrates} ${bookedCrates > 1 ? unitNamePlural : unitName} confirmed via ${paymentMethod}! Available on ${
             availability.status === 'in-stock' ? 'today (in stock)' : availability.dayOfWeek
           }.`,
           true
@@ -253,11 +270,11 @@ export default function BookCrateModal({
             )}
             <div>
               <h2 className="text-lg font-bold text-[var(--text-title-color)] leading-tight">
-                {view === 'booking' ? 'Book Egg Crates' : 'Complete Payment'}
+                {view === 'booking' ? `Book ${currentProduct?.name || 'Products'}` : 'Complete Payment'}
               </h2>
               <p className="text-xs text-[var(--text-primary)]">
                 {view === 'booking'
-                  ? 'Order crates with real-time weekly availability'
+                  ? `Order ${unitNamePlural.toLowerCase()} with real-time weekly availability`
                   : "Pay into company's account and select payment method"}
               </p>
             </div>
@@ -278,26 +295,26 @@ export default function BookCrateModal({
               {/* Product & Stock Summary */}
               <div className="p-3.5 rounded-xl bg-[var(--primary)] border border-[var(--border)] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  {eggProduct?.picture ? (
+                  {currentProduct?.picture ? (
                     <Image
-                      src={String(eggProduct.picture)}
-                      alt={eggProduct.name || 'Egg'}
+                      src={String(currentProduct.picture)}
+                      alt={currentProduct.name || 'Product'}
                       width={46}
                       height={46}
                       className="rounded-lg object-cover"
                     />
                   ) : (
                     <div className="w-11 h-11 rounded-lg bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl shrink-0">
-                      <i className="bi bi-egg"></i>
+                      <i className="bi bi-box-seam"></i>
                     </div>
                   )}
                   <div>
                     <div className="font-semibold text-sm text-[var(--text-title-color)]">
-                      {eggProduct?.name || 'Fresh Farm Eggs (Crate)'}
+                      {currentProduct?.name || 'Product'}
                     </div>
                     <div className="text-xs font-bold text-[var(--customColor)]">
                       ₦{formatMoney(unitPrice)}{' '}
-                      <span className="font-normal text-[var(--text-primary)]">/ Crate</span>
+                      <span className="font-normal text-[var(--text-primary)]">/ {unitName}</span>
                     </div>
                   </div>
                 </div>
@@ -305,7 +322,7 @@ export default function BookCrateModal({
                 <div className="text-right shrink-0">
                   <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-300">
                     <i className="bi bi-check-circle text-[10px]"></i>
-                    {formatMoney(inStock)} in stock
+                    {formatMoney(computedInStock)} in stock
                   </div>
                 </div>
               </div>
@@ -313,7 +330,7 @@ export default function BookCrateModal({
               {/* Quantity Selector */}
               <div>
                 <label className="block text-xs uppercase font-semibold text-[var(--text-primary)] mb-2 tracking-wide">
-                  Number of Crates to Book
+                  Number of {unitNamePlural} to Book
                 </label>
                 <div className="flex items-center gap-2">
                   <button
@@ -373,16 +390,16 @@ export default function BookCrateModal({
                           : 'bg-[var(--primary)] text-[var(--text-primary)] border-[var(--border)] hover:text-[var(--text-title-color)]'
                       }`}
                     >
-                      {num} Crates
+                      {num} {unitNamePlural}
                     </button>
                   ))}
-                  {inStock > 0 && (
+                  {computedInStock > 0 && (
                     <button
                       type="button"
-                      onClick={() => handleCrateChange(inStock)}
+                      onClick={() => handleCrateChange(computedInStock)}
                       className="text-xs px-2.5 py-1 rounded-md bg-[var(--primary)] text-green-600 dark:text-green-400 border border-green-500/30 hover:bg-green-500/10 font-medium ml-auto cursor-pointer"
                     >
-                      All in stock ({inStock})
+                      All in stock ({computedInStock})
                     </button>
                   )}
                 </div>
@@ -399,7 +416,7 @@ export default function BookCrateModal({
                       Available Today (In Stock)
                     </div>
                     <div className="text-xs text-green-700 dark:text-green-400/90 mt-0.5">
-                      All {bookedCrates} crate{bookedCrates > 1 ? 's are' : ' is'} currently in stock
+                      All {bookedCrates} {bookedCrates > 1 ? unitNamePlural : unitName} {bookedCrates > 1 ? 'are' : 'is'} currently in stock
                       and ready for immediate pickup or dispatch today.
                     </div>
                   </div>
@@ -419,7 +436,7 @@ export default function BookCrateModal({
                       </span>
                     </div>
                     <div className="text-xs text-amber-700 dark:text-amber-400/90 mt-1">
-                      All {bookedCrates} crates will be available on {availability.dayOfWeek}.
+                      All {bookedCrates} {unitNamePlural} will be available on {availability.dayOfWeek}.
                     </div>
                   </div>
                 </div>
@@ -435,8 +452,8 @@ export default function BookCrateModal({
                       Exceeds Current Stock
                     </div>
                     <div className="text-xs text-red-700 dark:text-red-400/90 mt-0.5">
-                      Only {inStock} crates in stock. Farm daily production rate has not been
-                      configured yet.
+                      Only {computedInStock} {unitNamePlural} in stock. Daily production/replenishment rate has not been
+                      configured yet for this product.
                     </div>
                   </div>
                 </div>
@@ -449,7 +466,7 @@ export default function BookCrateModal({
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                   <div className="text-xs text-[var(--text-primary)]">
-                    {bookedCrates} crate{bookedCrates > 1 ? 's' : ''} × ₦{formatMoney(unitPrice)}
+                    {bookedCrates} {bookedCrates > 1 ? unitNamePlural : unitName} × ₦{formatMoney(unitPrice)}
                   </div>
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1 sm:mt-0">
                     ₦{formatMoney(totalPrice)}

@@ -167,6 +167,18 @@ const CreateProduct: React.FC = () => {
         rules: { blank: productForm.type !== 'Livestock' },
         field: 'Date of Birth field',
       },
+      {
+        name: 'isSelling',
+        value: productForm.isSelling,
+        rules: { maxLength: 100 },
+        field: 'Is Selling field',
+      },
+      {
+        name: 'rate',
+        value: productForm.rate || 0,
+        rules: { maxLength: 100 },
+        field: 'Daily Production Rate field',
+      },
     ]
     const { messages } = validateInputs(inputsToValidate)
     const getFirstNonEmptyMessage = (
@@ -349,17 +361,50 @@ const CreateProduct: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 mt-4 ml-2">
-            <input
-              type="checkbox"
-              id="isProducing"
-              className="w-5 h-5 cursor-pointer accent-[var(--customRedColor)]"
-              checked={productForm.isProducing}
-              onChange={(e) => setForm('isProducing', e.target.checked)}
-            />
-            <label htmlFor="isProducing" className="label cursor-pointer !mb-0 font-bold">
-              Is Producing? (Internal Production)
-            </label>
+          <div className="flex flex-col gap-3 mt-4">
+            <div className="flex items-center gap-2 ml-2">
+              <input
+                type="checkbox"
+                id="isProducing"
+                className="w-5 h-5 cursor-pointer accent-[var(--customRedColor)]"
+                checked={productForm.isProducing}
+                onChange={(e) => setForm('isProducing', e.target.checked)}
+              />
+              <label htmlFor="isProducing" className="label cursor-pointer !mb-0 font-bold">
+                Is Producing? (Internal Production)
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 ml-2">
+              <input
+                type="checkbox"
+                id="isSelling"
+                className="w-5 h-5 cursor-pointer accent-[var(--customRedColor)]"
+                checked={productForm.isSelling}
+                onChange={(e) => setForm('isSelling', e.target.checked)}
+              />
+              <label htmlFor="isSelling" className="label cursor-pointer !mb-0 font-bold">
+                Is Selling? (Market Ready)
+              </label>
+            </div>
+
+            {productForm.isSelling && (
+              <div className="flex flex-col ml-2 mt-2">
+                <label className="label !text-xs font-bold" htmlFor="rate">
+                  Daily Production / Replenishment Rate ({productForm.purchaseUnit || 'Units'} / Day)
+                </label>
+                <input
+                  className="form-input"
+                  id="rate"
+                  name="rate"
+                  value={productForm.rate ?? ''}
+                  onChange={handleInputChange}
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 50"
+                />
+              </div>
+            )}
           </div>
         </div>
 

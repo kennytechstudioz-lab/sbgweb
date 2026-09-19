@@ -15,13 +15,29 @@ import {
 } from 'lucide-react'
 import ThemeToggle from '../Admin/ThemeToggle'
 
+const navLinks = [
+  { label: 'Dashboard', href: '/dashboard', icon: Gauge, exact: true },
+  { label: 'Profile', href: '/dashboard/profile', icon: User },
+  { label: 'Transactions', href: '/dashboard/transactions', icon: ArrowLeftRight },
+  { label: 'Products', href: '/dashboard/products', icon: Boxes },
+  { label: 'Notification', href: '/dashboard/notifications', icon: Bell },
+  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+]
+
 function NavigationItems({
   user,
+  pathname,
   onItemClick,
 }: {
   user: any
+  pathname?: string
   onItemClick?: () => void
 }) {
+  const isDashboardActive = (href: string, exact = false) => {
+    if (exact || href === '/dashboard') return pathname === href
+    return pathname?.startsWith(href)
+  }
+
   return (
     <div className="v_nav_card nav h-full w-full flex flex-col overflow-y-auto">
       <div className="flex items-start pt-2">
@@ -59,58 +75,24 @@ function NavigationItems({
 
       <div className="flex py-1">{user?.staffPositions}</div>
 
-      <div className="mt-4 flex-1">
-        <Link
-          onClick={onItemClick}
-          className="v_nav_items hover:text-[var(--customColor)] flex items-center"
-          href="/dashboard"
-        >
-          <Gauge className="mr-3 w-5 h-5" />
-          Dashboard
-        </Link>
-
-        <Link
-          onClick={onItemClick}
-          className="v_nav_items hover:text-[var(--customColor)] flex items-center"
-          href="/dashboard/profile"
-        >
-          <User className="mr-3 w-5 h-5" />
-          Profile
-        </Link>
-        <Link
-          onClick={onItemClick}
-          className="v_nav_items hover:text-[var(--customColor)] flex items-center"
-          href="/dashboard/transactions"
-        >
-          <ArrowLeftRight className="mr-3 w-5 h-5" />
-          Transactions
-        </Link>
-
-        <Link
-          onClick={onItemClick}
-          className="v_nav_items hover:text-[var(--customColor)] flex items-center"
-          href="/dashboard/products"
-        >
-          <Boxes className="mr-3 w-5 h-5" />
-          Products
-        </Link>
-
-        <Link
-          onClick={onItemClick}
-          className="v_nav_items hover:text-[var(--customColor)] flex items-center"
-          href="/dashboard/notifications"
-        >
-          <Bell className="mr-3 w-5 h-5" />
-          Notification
-        </Link>
-        <Link
-          onClick={onItemClick}
-          className="v_nav_items hover:text-[var(--customColor)] flex items-center"
-          href="/dashboard/settings"
-        >
-          <Settings className="mr-3 w-5 h-5" />
-          Settings
-        </Link>
+      <div className="mt-6 flex-1 space-y-2">
+        {navLinks.map((item) => {
+          const Icon = item.icon
+          const active = isDashboardActive(item.href, item.exact)
+          return (
+            <Link
+              key={item.href}
+              onClick={onItemClick}
+              className={`v_nav_items hover:text-[var(--customColor)] flex items-center py-3.5 px-1 transition-colors ${
+                active ? 'text-[var(--customColor)] font-semibold' : ''
+              }`}
+              href={item.href}
+            >
+              <Icon className="mr-3 w-5 h-5 shrink-0" />
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
       </div>
       <ThemeToggle />
     </div>
@@ -134,7 +116,7 @@ export default function DashboardNavigation() {
     <>
       {/* Desktop Sidebar: Strictly visible on desktop (md: and up), hidden on mobile */}
       <aside className="hidden md:block w-[270px] min-w-[270px] shrink-0 sticky top-0 h-screen z-30">
-        <NavigationItems user={user} />
+        <NavigationItems user={user} pathname={pathname} />
       </aside>
 
       {/* Mobile Drawer: Strictly for mobile (< md), hidden on desktop */}
@@ -159,7 +141,7 @@ export default function DashboardNavigation() {
               : '-translate-x-full pointer-events-none invisible'
           }`}
         >
-          <NavigationItems user={user} onItemClick={clearNav} />
+          <NavigationItems user={user} pathname={pathname} onItemClick={clearNav} />
         </div>
       </div>
     </>

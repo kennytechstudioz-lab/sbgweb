@@ -82,6 +82,7 @@ export interface Product {
   type: 'Feed' | 'Medicine' | 'Water' | 'Livestock' | 'General'
   isProducing: boolean
   isSelling: boolean
+  rate?: number
   createdAt: Date | null | number
   dateOfBirth?: string | Date | null
   seoTitle: string
@@ -114,6 +115,7 @@ export const ProductEmpty = {
   type: 'General' as const,
   isProducing: false,
   isSelling: false,
+  rate: 0,
   createdAt: 0,
   dateOfBirth: null,
   seoTitle: '',

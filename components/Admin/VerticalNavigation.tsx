@@ -6,6 +6,7 @@ import { useSwipeable } from 'react-swipeable'
 import { NavStore } from '@/src/zustand/notification/Navigation'
 import { AuthStore } from '@/src/zustand/user/AuthStore'
 import CompanyStore from '@/src/zustand/app/Company'
+import TransactionStore from '@/src/zustand/Transaction'
 import ThemeToggle from './ThemeToggle'
 import {
   Gauge,
@@ -26,12 +27,14 @@ function AdminNavContent({
   companyForm,
   canSee,
   onItemClick,
+  pendingCount,
 }: {
   pathname: string
   user: any
   companyForm: any
   canSee: (name: string) => boolean
   onItemClick?: () => void
+  pendingCount?: number
 }) {
   return (
     <div className="v_nav_card nav h-full w-full flex flex-col overflow-y-auto">
@@ -120,6 +123,11 @@ function AdminNavContent({
               >
                 <CreditCard className="mr-3 w-5 h-5" />
                 Transactions
+                {pendingCount && pendingCount > 0 ? (
+                  <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                ) : null}
               </Link>
             </div>
             <div className="nav_dropdown">
@@ -496,6 +504,7 @@ export default function VerticalNavigation() {
   const { toggleVNav, vNav, clearNav } = NavStore()
   const { user } = AuthStore()
   const { companyForm } = CompanyStore()
+  const { pendingCount } = TransactionStore()
 
   useEffect(() => {
     clearNav()
@@ -528,6 +537,7 @@ export default function VerticalNavigation() {
           user={user}
           companyForm={companyForm}
           canSee={canSee}
+          pendingCount={pendingCount}
         />
       </aside>
 
@@ -559,6 +569,7 @@ export default function VerticalNavigation() {
             companyForm={companyForm}
             canSee={canSee}
             onItemClick={clearNav}
+            pendingCount={pendingCount}
           />
         </div>
       </div>

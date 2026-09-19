@@ -2,7 +2,7 @@
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { MessageStore } from '@/src/zustand/notification/Message'
+import { AlartStore, MessageStore } from '@/src/zustand/notification/Message'
 import LinkedPagination from '@/components/Admin/LinkedPagination'
 import {
   formatDateToDDMMYY,
@@ -10,13 +10,14 @@ import {
   formatTimeTo12Hour,
 } from '@/lib/helpers'
 import StatDuration from '@/components/Admin/StatDuration'
-import TransactionStore, { TransactionEmpty } from '@/src/zustand/Transaction'
+import TransactionStore, { Transaction, TransactionEmpty } from '@/src/zustand/Transaction'
 import { AuthStore } from '@/src/zustand/user/AuthStore'
 
 const Transactions: React.FC = () => {
   const [page_size] = useState(20)
   const [sort] = useState('-createdAt')
   const { setMessage } = MessageStore()
+  const { setAlert } = AlartStore()
   const {
     summary,
     loading,
@@ -26,6 +27,7 @@ const Transactions: React.FC = () => {
     updatePartPayment,
     setTransactionForm,
     getTransactions,
+    deleteTransaction,
   } = TransactionStore()
   const { page } = useParams()
   const defaultFrom = () => {
@@ -52,6 +54,18 @@ const Transactions: React.FC = () => {
     }
   }, [page, toDate, fromDate, sort])
 
+  const handleDelete = (item: Transaction) => {
+    if (item.status) return // Can't delete approved
+    setAlert(
+      'Delete Transaction',
+      'Are you sure you want to delete this pending booking?',
+      true,
+      () => {
+        deleteTransaction(`/transactions/${item._id}?fromUser=true`, setMessage)
+      }
+    )
+  }
+
   const handleSubmit = async (e: string) => {
     const form = new FormData()
     form.append('username', transactionForm.username)
@@ -70,35 +84,6 @@ const Transactions: React.FC = () => {
     )
   }
 
-  const downloadExcel = () => {
-    const headers = ["S/N", "Customer", "Products", "Amount", "Status", "Time"];
-    const rows = transactions.map((item, index) => {
-      const customerInfo = `${item.fullName} ${item.staffName || ''}`.trim()
-      const products = item.cartProducts?.map(p => `${p.cartUnits} ${p.purchaseUnit} of ${p.name}`).join(' | ') || ''
-      const status = item.status ? 'Paid' : 'Pending'
-      const time = `${formatTimeTo12Hour(item.createdAt)} ${formatDateToDDMMYY(item.createdAt)}`
-
-      return [
-        index + 1,
-        `"${customerInfo}"`,
-        `"${products}"`,
-        item.totalAmount,
-        status,
-        `"${time}"`
-      ]
-    });
-
-    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const localUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = localUrl;
-    link.setAttribute('download', 'transactions.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-
   return (
     <>
       <div className="flex flex-wrap sm:flex-nowrap justify-between items-center sm:items-end gap-3 mb-3">
@@ -109,13 +94,6 @@ const Transactions: React.FC = () => {
           setFromDate={setFromDate}
           setToDate={setToDate}
         />
-        <div className="flex gap-2">
-          
-          <button onClick={downloadExcel} className="custom_btn bg-green-600 hover:bg-green-700 text-white shrink-0">
-            <i className="bi bi-file-earmark-spreadsheet mr-2"></i>
-            Export to Excel
-          </button>
-        </div>
       </div>
 
       <div className="overflow-auto mb-5">
@@ -167,22 +145,32 @@ const Transactions: React.FC = () => {
                       ₦{formatMoney(item.totalAmount)}
                     </td>
                     <td>
-                      <div className="flex">
-                        {!item.status && item.partPayment ? (
-                          <div
-                            className={`bg-[var(--customRedColor)] px-2 cursor-pointer py-1  text-white`}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex">
+                          {!item.status && item.partPayment ? (
+                            <div
+                              className={`bg-[var(--customRedColor)] px-2 cursor-pointer py-1  text-white`}
+                            >
+                              {item.status ? 'Paid' : 'Pending'}
+                            </div>
+                          ) : (
+                            <div
+                              className={`${item.status
+                                ? 'bg-[var(--success)]'
+                                : 'bg-[var(--customRedColor)]'
+                                } px-2 cursor-pointer py-1  text-white`}
+                            >
+                              {item.status ? 'Paid' : 'Pending'}
+                            </div>
+                          )}
+                        </div>
+                        {!item.status && (
+                          <button
+                            onClick={() => handleDelete(item)}
+                            className="text-[10px] text-red-400 hover:text-red-600 underline text-left"
                           >
-                            {item.status ? 'Paid' : 'Pending'}
-                          </div>
-                        ) : (
-                          <div
-                            className={`${item.status
-                              ? 'bg-[var(--success)]'
-                              : 'bg-[var(--customRedColor)]'
-                              } px-2 cursor-pointer py-1  text-white`}
-                          >
-                            {item.status ? 'Paid' : 'Pending'}
-                          </div>
+                            Delete
+                          </button>
                         )}
                       </div>
                     </td>

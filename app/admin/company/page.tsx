@@ -107,12 +107,6 @@ const CreateCompany: React.FC = () => {
         rules: { blank: false, minLength: 6, maxLength: 6 },
         field: 'Authentication Code',
       },
-      {
-        name: 'rate',
-        value: companyForm.rate !== undefined && companyForm.rate !== null ? String(companyForm.rate) : '0',
-        rules: { blank: false },
-        field: 'Production rate field',
-      },
     ]
 
     const { messages } = validateInputs(inputsToValidate)
@@ -261,20 +255,6 @@ const CreateCompany: React.FC = () => {
               type="password"
               maxLength={6}
               placeholder="Enter 6-digit code"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="label" htmlFor="">
-              Daily Egg Production Rate (Crates / Day)
-            </label>
-            <input
-              className="form-input"
-              name="rate"
-              value={companyForm.rate ?? ''}
-              onChange={handleInputChange}
-              type="number"
-              min="0"
-              placeholder="e.g. 50"
             />
           </div>
         </div>

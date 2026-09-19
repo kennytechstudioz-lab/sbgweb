@@ -95,12 +95,33 @@ const Transactions: React.FC = () => {
     }
   }, [page, toDate, fromDate, getTransactions, url, setMessage, page_size, sort, paymentFilter, productFilter])
 
-  const updateTrnx = (e: boolean, id: string) => {
-    updateTransaction(
-      `/transactions/${id}?ordering=-createdAt`,
-      { status: e ? false : true },
-      setMessage
-    )
+  const updateTrnx = (e: boolean, id: string, transactionItem?: Transaction) => {
+    const isApproving = !e
+    const approverName = user?.fullName || user?.username || 'Staff'
+
+    if (isApproving) {
+      setAlert(
+        'Confirm Approval',
+        `Are you sure you want to approve this order by ${transactionItem?.fullName || 'Customer'}? You (${approverName}) will be recorded as the approving staff, and the booked crates will be deducted from inventory.`,
+        true,
+        () => {
+          updateTransaction(
+            `/transactions/${id}?ordering=-createdAt`,
+            {
+              status: true,
+              staffName: approverName,
+            },
+            setMessage
+          )
+        }
+      )
+    } else {
+      updateTransaction(
+        `/transactions/${id}?ordering=-createdAt`,
+        { status: false },
+        setMessage
+      )
+    }
   }
 
   const selectTrx = (trx: Transaction) => {
@@ -412,18 +433,26 @@ const Transactions: React.FC = () => {
                             </div>
                           ) : (
                             <div
-                              onClick={() => updateTrnx(item.status, item._id)}
+                              onClick={() => updateTrnx(item.status, item._id, item)}
                               className="bg-[var(--customRedColor)] px-2 cursor-pointer py-1 text-white w-full text-center"
-                              title="Click to mark as Paid"
+                              title="Click to approve order and confirm payment"
                             >
                               Pending
                             </div>
                           )
                         ) : (
-                          <div
-                            className="bg-[var(--success)] px-2 py-1 text-white w-full text-center"
-                          >
-                            Paid
+                          <div className="flex flex-col items-center w-full">
+                            <div className="bg-[var(--success)] px-2 py-1 text-white w-full text-center font-medium">
+                              Paid
+                            </div>
+                            {item.staffName && (
+                              <div
+                                className="text-[10px] text-[var(--text-secondary)] mt-0.5 text-center truncate max-w-[110px]"
+                                title={`Approved by: ${item.staffName}`}
+                              >
+                                by {item.staffName}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

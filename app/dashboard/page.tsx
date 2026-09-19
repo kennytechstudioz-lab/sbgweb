@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { AuthStore } from '@/src/zustand/user/AuthStore'
@@ -7,6 +7,7 @@ import TransactionStore from '@/src/zustand/Transaction'
 import ProductStore from '@/src/zustand/Product'
 import CompanyStore from '@/src/zustand/app/Company'
 import { MessageStore } from '@/src/zustand/notification/Message'
+import { useGeneralContext } from '@/context/GeneralContext'
 import { formatDateToDDMMYY, formatMoney, formatTimeTo12Hour } from '@/lib/helpers'
 import BookCrateModal from '@/components/Dashboard/BookCrateModal'
 
@@ -16,7 +17,14 @@ const Dashboard: React.FC = () => {
   const { transactions, loading, count, getTransactions } = TransactionStore()
   const { products, getProducts } = ProductStore()
   const { companyForm, getCompany } = CompanyStore()
+  const { socket } = useGeneralContext()
   const [showBookModal, setShowBookModal] = useState<boolean>(false)
+
+  // Silent refresh of stock and company rate without triggering toast alerts
+  const refreshStockData = useCallback(() => {
+    getProducts('/products?isSelling=true', () => {})
+    getCompany('/company', () => {})
+  }, [getProducts, getCompany])
 
   useEffect(() => {
     if (user?.username || user?.phone || user?.email) {
@@ -28,14 +36,61 @@ const Dashboard: React.FC = () => {
     }
   }, [user])
 
+  // Initial load
   useEffect(() => {
     if (!companyForm.name || !companyForm.rate) {
       getCompany('/company', setMessage)
     }
-    if (!products || products.length === 0) {
-      getProducts('/products?isSelling=true', setMessage)
-    }
+    getProducts('/products?isSelling=true', setMessage)
   }, [])
+
+  // Dynamic live stock updates: when user comes online, focuses window, or stays on page
+  useEffect(() => {
+    const handleOnline = () => {
+      refreshStockData()
+    }
+    const handleFocus = () => {
+      refreshStockData()
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshStockData()
+      }
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Periodic heartbeat every 20 seconds so user never sees stale stock
+    const heartbeatTimer = setInterval(refreshStockData, 20000)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      clearInterval(heartbeatTimer)
+    }
+  }, [refreshStockData])
+
+  // Real-time stock updates via socket
+  useEffect(() => {
+    if (!socket) return
+
+    const handleSocketStockUpdate = () => {
+      refreshStockData()
+    }
+
+    socket.on('stock_update', handleSocketStockUpdate)
+    socket.on('stocking', handleSocketStockUpdate)
+    socket.on('transaction', handleSocketStockUpdate)
+
+    return () => {
+      socket.off('stock_update', handleSocketStockUpdate)
+      socket.off('stocking', handleSocketStockUpdate)
+      socket.off('transaction', handleSocketStockUpdate)
+    }
+  }, [socket, refreshStockData])
 
   const stats = useMemo(() => {
     const totalSpent = transactions.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0)
@@ -72,7 +127,7 @@ const Dashboard: React.FC = () => {
 
     const dayOfWeek = new Date().getDay() // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
     const remainingDays = dayOfWeek === 0 ? 6 : Math.max(0, 6 - dayOfWeek)
-    const rate = Number(companyForm?.rate) || 0
+    const rate = Number(prod?.rate) || Number(companyForm?.rate) || 0
     const remProd = remainingDays * rate
     const totalAvail = Math.max(0, inStock + remProd)
 
@@ -294,10 +349,12 @@ const Dashboard: React.FC = () => {
       <BookCrateModal
         isOpen={showBookModal}
         onClose={() => setShowBookModal(false)}
+        product={eggProduct}
         eggProduct={eggProduct}
         inStock={inStockCrates}
-        rate={Number(companyForm?.rate) || 0}
+        rate={Number(eggProduct?.rate) || Number(companyForm?.rate) || 0}
         onSuccess={() => {
+          refreshStockData()
           if (user?.username || user?.phone || user?.email) {
             const usernameParam = user.username || user.phone || user.email
             getTransactions(
